@@ -3,20 +3,19 @@ package config
 type Config struct {
 	Env      string
 	Server   ServerConfig
-	Database DBConfig
+	Database DatabaseConfig
 	JWT      JWTConfig
+}
+
+type DatabaseConfig struct {
+	URL string
 }
 
 type ServerConfig struct {
 	Host string
-	Port string
-}
-
-type DBConfig struct {
-	URL    string
-	Driver string
+	Port int
 }
 
 type JWTConfig struct {
-	SecretKey string
+	Secret string
 }

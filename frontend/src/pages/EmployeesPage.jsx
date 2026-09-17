@@ -14,7 +14,7 @@ function EmployeesPage() {
 
   async function fetchEmployees() {
     const res = await api.get("/employees");
-    setEmployees(res.data);
+    setEmployees(res.data.data || []);
   }
 
   async function deleteEmployee(id) {
@@ -25,7 +25,7 @@ function EmployeesPage() {
   }
 
   const filtered = employees.filter((item) =>
-    item.name.toLowerCase().includes(searchText.toLowerCase()) ||
+    item.full_name.toLowerCase().includes(searchText.toLowerCase()) ||
     item.position.toLowerCase().includes(searchText.toLowerCase())
   );
 
@@ -74,10 +74,10 @@ function EmployeesPage() {
             <tbody>
               {paginated.map((item) => (
                 <tr key={item.id}>
-                  <td>{item.name}</td>
+                  <td>{item.full_name}</td>
                   <td>{item.position}</td>
-                  <td>{item.shift}</td>
-                  <td>{item.phone}</td>
+                  <td>—</td>
+                  <td>—</td>
                   <td>
                   <Link to={`/employees/edit/${item.id}`}>Ред.</Link>
                   <a href="#" onClick={(e) => { e.preventDefault(); deleteEmployee(item.id); }}>Удал.</a>

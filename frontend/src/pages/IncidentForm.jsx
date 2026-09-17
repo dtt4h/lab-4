@@ -2,128 +2,61 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import api from "../api/api";
 
-function IncidentForm() {
-  const navigate = useNavigate();
+const emptyForm = { title: "", description: "", priority: "medium", status: "open", hotel_id: "", location_id: "", category_id: "", occurred_at: "" };
+const localNow = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 
+export default function IncidentForm() {
   const { id } = useParams();
-
-  const isEdit = !!id;
-
-  const [form, setForm] = useState({
-    title: "",
-    hotel: "Гостиница Космос",
-    level: "Средний",
-    status: "Открыт",
-    description: "",
-    date: "",
-    floor: "",
-  });
+  const isEdit = Boolean(id);
+  const navigate = useNavigate();
+  const [form, setForm] = useState(emptyForm);
+  const [hotels, setHotels] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [locations, setLocations] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (isEdit) {
-      fetchIncident();
-    } else {
-      const now = new Date();
-      const offset = now.getTimezoneOffset() * 60000;
-      const localISOTime = new Date(now.getTime() - offset).toISOString().slice(0, 16);
-      setForm((prev) => ({ ...prev, date: localISOTime }));
-    }
-  }, []);
+    Promise.all([api.get("/hotels"), api.get("/categories"), isEdit ? api.get(`/incidents/${id}`) : Promise.resolve(null)])
+      .then(([hotelResponse, categoryResponse, incidentResponse]) => {
+        setHotels(hotelResponse.data.data || []);
+        setCategories(categoryResponse.data.data || []);
+        if (incidentResponse) {
+          const item = incidentResponse.data.data;
+          setForm({ ...emptyForm, ...item, location_id: item.location_id || "", category_id: item.category_id || "", occurred_at: item.occurred_at?.slice(0, 16) || localNow() });
+        } else setForm((current) => ({ ...current, occurred_at: localNow() }));
+      })
+      .catch(() => setError("Не удалось загрузить данные формы. Обновите страницу и попробуйте снова."))
+      .finally(() => setLoading(false));
+  }, [id, isEdit]);
 
-  async function fetchIncident() {
-    const res = await api.get(`/incidents/${id}`);
-    setForm(res.data);
+  useEffect(() => {
+    if (!form.hotel_id) { setLocations([]); return; }
+    api.get("/locations", { params: { hotel_id: form.hotel_id } }).then((response) => setLocations(response.data.data || [])).catch(() => setError("Не удалось загрузить локации выбранной гостиницы."));
+  }, [form.hotel_id]);
+
+  function change(event) {
+    const { name, value } = event.target;
+    setError("");
+    setForm((current) => ({ ...current, [name]: value, ...(name === "hotel_id" ? { location_id: "" } : {}) }));
   }
 
-  function handleChange(e) {
-    setForm({
-      ...form,
-      [e.target.name]: e.target.value,
-    });
+  async function submit(event) {
+    event.preventDefault();
+    setSaving(true);
+    setError("");
+    try {
+      const body = { ...form, location_id: form.location_id || null, category_id: form.category_id || null, occurred_at: new Date(form.occurred_at).toISOString() };
+      if (isEdit) await api.put(`/incidents/${id}`, body); else await api.post("/incidents", body);
+      navigate("/incidents");
+    } catch (requestError) {
+      setError(requestError.response?.data?.error?.message || "Не удалось сохранить инцидент. Проверьте заполненные поля.");
+    } finally { setSaving(false); }
   }
 
-  async function handleSubmit(e) {
-    e.preventDefault();
-
-    if (!form.title || !form.level || !form.status) {
-      alert("нужно заполнить название и статус");
-      return;
-    }
-
-    if (isEdit) {
-      await api.put(`/incidents/${id}`, form);
-    } else {
-      await api.post("/incidents", form);
-    }
-
-    navigate("/");
-  }
-
-  return (
-    <div className="form-card">
-      <h1>
-        {isEdit
-          ? "Редактировать инцидент"
-          : "Новый инцидент"}
-      </h1>
-
-      <form onSubmit={handleSubmit}>
-        <input
-          name="title"
-          placeholder="Название"
-          value={form.title}
-          onChange={handleChange}
-          required
-        />
-
-        <input
-          name="hotel"
-          placeholder="Отель"
-          value={form.hotel}
-          onChange={handleChange}
-          disabled
-          style={{ background: "#f5f5f5" }}
-        />
-
-        <select name="level" value={form.level} onChange={handleChange} required>
-          <option value="Низкий">Низкий</option>
-          <option value="Средний">Средний</option>
-          <option value="Высокий">Высокий</option>
-        </select>
-
-        <select name="status" value={form.status} onChange={handleChange} required>
-          <option value="Открыт">Открыт</option>
-          <option value="Проверяется">Проверяется</option>
-          <option value="Решён">Решён</option>
-        </select>
-
-        <input
-          type="datetime-local"
-          name="date"
-          placeholder="Дата и время"
-          value={form.date}
-          onChange={handleChange}
-          required
-        />
-
-        <input
-          name="floor"
-          placeholder="Этаж"
-          value={form.floor}
-          onChange={handleChange}
-        />
-
-        <textarea
-          name="description"
-          placeholder="Описание"
-          value={form.description}
-          onChange={handleChange}
-        />
-
-        <button type="submit">Сохранить</button>
-      </form>
-    </div>
-  );
+  if (loading) return <div className="empty-state">Подготавливаем форму…</div>;
+  return <section className="form-card incident-form"><span className="eyebrow">ИНЦИДЕНТ</span><h1>{isEdit ? "Редактирование инцидента" : "Новый инцидент"}</h1><p className="muted">Укажите место и детали — это поможет быстрее передать задачу нужному сотруднику.</p>{error && <p className="form-error" role="alert">{error}</p>}
+    <form onSubmit={submit}><label>Краткое описание<input name="title" value={form.title} onChange={change} placeholder="Например: не работает кондиционер" required /></label><div className="form-grid"><label>Гостиница<select name="hotel_id" value={form.hotel_id} onChange={change} required><option value="">Выберите гостиницу</option>{hotels.map((hotel) => <option key={hotel.id} value={hotel.id}>{hotel.name}</option>)}</select></label><label>Место<select name="location_id" value={form.location_id} onChange={change} disabled={!form.hotel_id}><option value="">{form.hotel_id ? "Не указано" : "Сначала выберите гостиницу"}</option>{locations.map((location) => <option key={location.id} value={location.id}>{[location.area_name, location.floor && `этаж ${location.floor}`, location.room && `помещение ${location.room}`].filter(Boolean).join(" · ")}</option>)}</select></label></div><div className="form-grid"><label>Категория<select name="category_id" value={form.category_id} onChange={change}><option value="">Без категории</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label><label>Приоритет<select name="priority" value={form.priority} onChange={change}><option value="low">Низкий</option><option value="medium">Средний</option><option value="high">Высокий</option><option value="critical">Критичный</option></select></label></div><div className="form-grid"><label>Статус<select name="status" value={form.status} onChange={change}><option value="open">Открыт</option><option value="in_progress">В работе</option><option value="resolved">Решён</option><option value="closed">Закрыт</option></select></label><label>Когда обнаружено<input type="datetime-local" name="occurred_at" value={form.occurred_at} onChange={change} required /></label></div><label>Подробности<textarea name="description" placeholder="Что произошло, как это влияет на гостя или работу и что уже проверили" value={form.description} onChange={change} /></label><button disabled={saving}>{saving ? "Сохраняем…" : "Сохранить инцидент"}</button></form>
+  </section>;
 }
-
-export default IncidentForm;

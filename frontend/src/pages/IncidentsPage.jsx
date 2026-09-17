@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import api from "../api/api";
+import { incidentStatusLabel } from "../constants/incidentStatus";
+
+const priorityLabels = { low: "Низкий", medium: "Средний", high: "Высокий", critical: "Критичный" };
 
 function IncidentsPage() {
   const [incidents, setIncidents] = useState([]);
@@ -14,7 +17,7 @@ function IncidentsPage() {
 
   async function fetchIncidents() {
     const res = await api.get("/incidents");
-    setIncidents(res.data);
+    setIncidents(res.data.data || []);
   }
 
   async function deleteIncident(id) {
@@ -34,9 +37,9 @@ function IncidentsPage() {
   const filtered = incidents.filter(
     (item) =>
       item.title.toLowerCase().includes(search.toLowerCase()) ||
-      item.hotel.toLowerCase().includes(search.toLowerCase()) ||
+      (item.priority || "").toLowerCase().includes(search.toLowerCase()) ||
       item.status.toLowerCase().includes(search.toLowerCase())
-  ).sort((a, b) => new Date(b.date) - new Date(a.date));
+  ).sort((a, b) => new Date(b.occurred_at) - new Date(a.occurred_at));
 
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
   const start = (currentPage - 1) * itemsPerPage;
@@ -75,7 +78,6 @@ function IncidentsPage() {
               <tr>
                 <th>Заголовок</th>
                 <th>Дата</th>
-                <th>Этаж</th>
                 <th>Уровень</th>
                 <th>Статус</th>
                 <th>Действия</th>
@@ -85,10 +87,9 @@ function IncidentsPage() {
               {paginated.map((item) => (
                 <tr key={item.id}>
                   <td>{item.title}</td>
-                  <td>{new Date(item.date).toLocaleString("ru-RU")}</td>
-                  <td>{item.floor}</td>
-                  <td>{item.level}</td>
-                  <td>{item.status}</td>
+                  <td>{new Date(item.occurred_at).toLocaleString("ru-RU")}</td>
+                  <td>{priorityLabels[item.priority] || item.priority}</td>
+                  <td><span className={`status-badge incident-status-${item.status}`}>{incidentStatusLabel(item.status)}</span></td>
                   <td>
                   <Link to={`/incidents/${item.id}`}>Детали</Link>
                   <Link to={`/incidents/edit/${item.id}`}>Ред.</Link>

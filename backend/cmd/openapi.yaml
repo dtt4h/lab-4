@@ -1,0 +1,122 @@
+openapi: 3.0.3
+info:
+  title: Hotel Ops API
+  version: 1.0.0
+  description: API управления гостиницей, инцидентами и бронированиями.
+servers:
+  - url: /api/v1
+paths:
+  /auth/register:
+    post:
+      summary: Регистрация пользователя
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterRequest' }
+      responses: { '201': { description: Пользователь создан }, '400': { $ref: '#/components/responses/ValidationError' }, '409': { $ref: '#/components/responses/Conflict' } }
+  /auth/login:
+    post:
+      summary: Вход
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses: { '200': { description: Access token и refresh cookie }, '401': { $ref: '#/components/responses/Unauthorized' } }
+  /auth/refresh:
+    post:
+      summary: Обновление access token по refresh cookie
+      responses: { '200': { description: Token обновлён }, '401': { $ref: '#/components/responses/Unauthorized' } }
+  /auth/logout:
+    post:
+      summary: Выход
+      responses: { '204': { description: Cookie удалён } }
+  /auth/me:
+    get:
+      summary: Текущий пользователь
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Профиль }, '401': { $ref: '#/components/responses/Unauthorized' } }
+  /public/hotels:
+    get:
+      summary: Публичный список гостиниц
+      responses: { '200': { description: Список гостиниц } }
+  /public/rooms:
+    get:
+      summary: Доступные номера
+      parameters:
+        - { name: hotel_id, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: check_in, in: query, required: true, schema: { type: string, format: date } }
+        - { name: check_out, in: query, required: true, schema: { type: string, format: date } }
+      responses: { '200': { description: Доступные номера }, '400': { $ref: '#/components/responses/ValidationError' } }
+  /public/bookings:
+    post:
+      summary: Публичное создание бронирования
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BookingRequest' }
+      responses: { '201': { description: Бронирование создано }, '400': { $ref: '#/components/responses/ValidationError' }, '409': { $ref: '#/components/responses/Conflict' } }
+  /incidents:
+    get:
+      summary: Список инцидентов
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+        - { name: status, in: query, schema: { type: string } }
+        - { name: priority, in: query, schema: { type: string } }
+      responses: { '200': { description: Список }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+    post:
+      summary: Создание инцидента
+      security: [{ bearerAuth: [] }]
+      responses: { '201': { description: Создан }, '400': { $ref: '#/components/responses/ValidationError' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /incidents/{id}:
+    parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+    get:
+      summary: Инцидент по ID
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Инцидент }, '404': { $ref: '#/components/responses/NotFound' } }
+    put:
+      summary: Изменение собственного инцидента
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Изменён }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+    delete:
+      summary: Удаление собственного инцидента
+      security: [{ bearerAuth: [] }]
+      responses: { '204': { description: Удалён }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+  schemas:
+    RegisterRequest:
+      type: object
+      required: [username, email, password]
+      properties:
+        username: { type: string, minLength: 3 }
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8, format: password }
+    LoginRequest:
+      type: object
+      required: [login, password]
+      properties:
+        login: { type: string }
+        password: { type: string, format: password }
+    BookingRequest:
+      type: object
+      required: [guest_name, guest_email, room_id, check_in, check_out, guests_count]
+      properties:
+        guest_name: { type: string }
+        guest_email: { type: string, format: email }
+        guest_phone: { type: string }
+        room_id: { type: string, format: uuid }
+        check_in: { type: string, format: date }
+        check_out: { type: string, format: date }
+        guests_count: { type: integer, minimum: 1 }
+  responses:
+    ValidationError: { description: Некорректные входные данные }
+    Unauthorized: { description: Требуется аутентификация }
+    Forbidden: { description: Недостаточно прав }
+    NotFound: { description: Ресурс не найден }
+    Conflict: { description: Конфликт данных }
