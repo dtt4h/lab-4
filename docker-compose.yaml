@@ -5,7 +5,7 @@ services:
       POSTGRES_USER: lab4
       POSTGRES_PASSWORD: lab4
       POSTGRES_DB: lab4
-    ports: ["5432:5432"]
+    ports: ["5433:5432"]
     volumes:
       - db-data:/var/lib/postgresql/data
     healthcheck:
